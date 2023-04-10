@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import createShader from "gl-shader";
 
-interface DissolveProps {
+interface WaveProps {
   width: number;
   height: number;
   startVideoSrc: string;
@@ -21,24 +21,30 @@ void main() {
 
 const fragmentShaderCode = `
 precision mediump float;
+
 uniform sampler2D u_texture1;
 uniform sampler2D u_texture2;
 uniform float u_time;
+uniform float u_wave_amplitude;
+uniform float u_wave_frequency;
 varying vec2 v_texcoord;
 
 void main() {
-  vec4 color1 = texture2D(u_texture1, v_texcoord);
-  vec4 color2 = texture2D(u_texture2, v_texcoord);
-  gl_FragColor = mix(color1, color2, u_time);
+    vec4 color1 = texture2D(u_texture1, v_texcoord);
+    vec4 color2 = texture2D(u_texture2, v_texcoord);
+
+    float wave = 0.5 * (1.0 + sin(u_wave_frequency * (v_texcoord.y - u_time)));
+
+    wave = clamp(wave, 0.0, 1.0) * u_wave_amplitude;
+
+    float mix_amount = clamp(u_time + wave, 0.0, 1.0);
+    vec4 final_color = mix(color1, color2, mix_amount);
+
+    gl_FragColor = final_color;
 }
 `;
 
-const DissolveV2 = ({
-  width,
-  height,
-  startVideoSrc,
-  endVideoSrc,
-}: DissolveProps) => {
+const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const startVideoRef = useRef<HTMLVideoElement>(null);
   const endVideoRef = useRef<HTMLVideoElement>(null);
@@ -68,6 +74,8 @@ const DissolveV2 = ({
         { type: "sampler2D", name: "u_texture1" },
         { type: "sampler2D", name: "u_texture2" },
         { type: "float", name: "u_time" },
+        { type: "float", name: "u_wave_amplitude" },
+        { type: "float", name: "u_wave_frequency" },
       ],
       [
         { type: "vec2", name: "a_position" },
@@ -206,6 +214,8 @@ const DissolveV2 = ({
     if (startVideo.duration - startVideo.currentTime < 2) {
       endVideo.play();
       setIsTransition(true);
+      shader.uniforms.u_wave_amplitude = 0.5;
+      shader.uniforms.u_wave_frequency = 12.0;
       gl.activeTexture(gl.TEXTURE0 + textureUnit2);
       gl.bindTexture(gl.TEXTURE_2D, texture2);
       gl.texImage2D(
@@ -238,7 +248,7 @@ const DissolveV2 = ({
 
   return (
     <>
-      <h1> Dissolve Transition </h1>
+      <h1> Wave Transition</h1>
       {isTransition ? (
         <h1 style={{ color: "blue" }}>transition start</h1>
       ) : (
@@ -281,4 +291,4 @@ const DissolveV2 = ({
   );
 };
 
-export default DissolveV2;
+export default Wave;
