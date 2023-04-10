@@ -32,12 +32,7 @@ void main() {
 }
 `;
 
-const Dissolve = ({
-  width,
-  height,
-  src1,
-  src2,
-}: DissolveProps) => {
+const Dissolve = ({ width, height, src1, src2 }: DissolveProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef1 = useRef<HTMLVideoElement>(null);
   const videoRef2 = useRef<HTMLVideoElement>(null);
@@ -48,7 +43,7 @@ const Dissolve = ({
   const uniformLoc1Ref = useRef<WebGLUniformLocation | null>(null);
   const uniformLoc2Ref = useRef<WebGLUniformLocation | null>(null);
   const timeRef = useRef<number>(0);
-  const transitionStartTimeRef = useRef<boolean>(false);
+  const transitionStartRef = useRef<boolean>(false);
   const textureUnit1 = 0;
   const textureUnit2 = 1;
 
@@ -81,8 +76,7 @@ const Dissolve = ({
     gl.compileShader(vertexShader);
     if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
       console.error(
-        "Failed to compile vertex shader: " +
-        gl.getShaderInfoLog(vertexShader)
+        "Failed to compile vertex shader: " + gl.getShaderInfoLog(vertexShader)
       );
       return;
     }
@@ -97,7 +91,7 @@ const Dissolve = ({
     if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
       console.error(
         "Failed to compile fragment shader: " +
-        gl.getShaderInfoLog(fragmentShader)
+          gl.getShaderInfoLog(fragmentShader)
       );
       return;
     }
@@ -143,7 +137,6 @@ const Dissolve = ({
     gl.enableVertexAttribArray(positionLoc);
     gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
 
-
     gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
     const texcoords = [1, 0, 0, 0, 1, 1, 0, 1];
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texcoords), gl.STATIC_DRAW);
@@ -182,7 +175,6 @@ const Dissolve = ({
     );
     gl.uniform1i(uniformLoc1Ref.current, textureUnit1);
 
-
     gl.activeTexture(gl.TEXTURE0 + textureUnit2);
     gl.bindTexture(gl.TEXTURE_2D, texture2);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -204,8 +196,7 @@ const Dissolve = ({
     initTextures();
   }, []);
 
-
-  const render = (deltaTime : number) => {
+  const render = (deltaTime: number) => {
     const gl = glRef.current;
     if (!gl) {
       console.error("WebGL context not found.");
@@ -226,16 +217,9 @@ const Dissolve = ({
 
     gl.activeTexture(gl.TEXTURE0 + textureUnit1);
     gl.bindTexture(gl.TEXTURE_2D, texture1);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      video1
-    );
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video1);
 
-    if (transitionStartTimeRef.current) {
+    if (transitionStartRef.current) {
       gl.activeTexture(gl.TEXTURE0 + textureUnit2);
       gl.bindTexture(gl.TEXTURE_2D, texture2);
       gl.texImage2D(
@@ -247,20 +231,18 @@ const Dissolve = ({
         video2
       );
       console.log(deltaTime);
-      timeRef.current += ( deltaTime / 1000 + timeRef.current )/ 5000
+      timeRef.current += (deltaTime / 1000 + timeRef.current) / 5000;
       //timeRef.current += 0.001;
-      if (timeRef.current > 1) timeRef.current = 0; 
     }
 
     const timeLoc = gl.getUniformLocation(programRef.current!, "u_time");
-    // if (timeRef.current >= 1) {
-    //   console.log("TRANSITION END");
-    //   videoRef1.current.pause();
-    //   videoRef2.current.pause();
-    // }
-    gl.uniform1f(timeLoc, timeRef.current);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    requestAnimationFrame(render);
+    if (timeRef.current <= 1) {
+      gl.uniform1f(timeLoc, timeRef.current);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      requestAnimationFrame(render);
+    } else {
+      console.log("Transition End");
+    }
   };
 
   useEffect(() => {
@@ -270,31 +252,50 @@ const Dissolve = ({
       console.log("PLAY");
       //render(0);
       setTimeout(() => {
-        transitionStartTimeRef.current = true;
-      }, 5000)
+        transitionStartRef.current = true;
+      }, 5000);
     }
   }, [videoRef1, videoRef2]);
 
   return (
     <>
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <div>
           <h3>video 1</h3>
-          <video ref={videoRef1} src={src1} muted loop style={{ display: "block" }}></video>
+          <video
+            ref={videoRef1}
+            src={src1}
+            muted
+            loop
+            style={{ display: "block" }}
+          ></video>
         </div>
         <div>
           <h3>video 2</h3>
-          <video ref={videoRef2} src={src2} muted loop style={{ display: "block" }}></video>
+          <video
+            ref={videoRef2}
+            src={src2}
+            muted
+            loop
+            style={{ display: "block" }}
+          ></video>
         </div>
       </div>
       <h1>result</h1>
-      <canvas ref={canvasRef} width={width} height={height} style={{ border: "1px solid black" }}></canvas>
+      <canvas
+        ref={canvasRef}
+        width={width}
+        height={height}
+        style={{ border: "1px solid black" }}
+      ></canvas>
     </>
-  )
-}
+  );
+};
 
 export default Dissolve;
