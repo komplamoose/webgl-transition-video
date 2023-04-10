@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import createShader from "gl-shader";
 
-interface WaveProps {
+interface PongProps {
   width: number;
   height: number;
   startVideoSrc: string;
@@ -25,26 +25,36 @@ precision mediump float;
 uniform sampler2D u_texture1;
 uniform sampler2D u_texture2;
 uniform float u_time;
-uniform float u_wave_amplitude;
-uniform float u_wave_frequency;
+uniform float u_amplitude;
+uniform float u_speed;
 varying vec2 v_texcoord;
 
+vec4 getFromColor(vec2 p) {
+  return texture2D(u_texture1, p);
+}
+
+vec4 getToColor(vec2 p) {
+  return texture2D(u_texture2, p);
+}
+
+vec4 transition(vec2 p) {
+  vec2 dir = p - vec2(.5);
+  float dist = length(dir);
+
+  if (dist > u_time) {
+    return mix(getFromColor(p), getToColor(p), u_time);
+  } else {
+    vec2 offset = dir * sin(dist * u_amplitude - u_time * u_speed);
+    return mix(getFromColor(p + offset), getToColor(p), u_time);
+  }
+}
+
 void main() {
-    vec4 color1 = texture2D(u_texture1, v_texcoord);
-    vec4 color2 = texture2D(u_texture2, v_texcoord);
-
-    float wave = 0.5 * (1.0 + sin(u_wave_frequency * (v_texcoord.y - u_time)));
-
-    wave = clamp(wave, 0.0, 1.0) * u_wave_amplitude;
-
-    float mix_amount = clamp(u_time + wave, 0.0, 1.0);
-    vec4 final_color = mix(color1, color2, mix_amount);
-
-    gl_FragColor = final_color;
+  gl_FragColor = transition(v_texcoord);
 }
 `;
 
-const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
+const Pong = ({ width, height, startVideoSrc, endVideoSrc }: PongProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const startVideoRef = useRef<HTMLVideoElement>(null);
   const endVideoRef = useRef<HTMLVideoElement>(null);
@@ -74,8 +84,8 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
         { type: "sampler2D", name: "u_texture1" },
         { type: "sampler2D", name: "u_texture2" },
         { type: "float", name: "u_time" },
-        { type: "float", name: "u_wave_amplitude" },
-        { type: "float", name: "u_wave_frequency" },
+        { type: "float", name: "u_amplitude" },
+        { type: "float", name: "u_speed" },
       ],
       [
         { type: "vec2", name: "a_position" },
@@ -211,11 +221,9 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
       startVideo
     );
 
-    if (startVideo.duration - startVideo.currentTime < 2) {
+    if (startVideo.duration - startVideo.currentTime < 3) {
       endVideo.play();
       setIsTransition(true);
-      shader.uniforms.u_wave_amplitude = 0.5;
-      shader.uniforms.u_wave_frequency = 12.0;
       gl.activeTexture(gl.TEXTURE0 + textureUnit2);
       gl.bindTexture(gl.TEXTURE_2D, texture2);
       gl.texImage2D(
@@ -230,6 +238,9 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
       timeRef.current = timeRef.current + 0.01;
       timeRef.current = timeRef.current > 1 ? 1 : timeRef.current;
     }
+
+    shader.uniforms.u_amplitude = 30;
+    shader.uniforms.u_speed = 30;
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     if (endVideo.duration === endVideo.currentTime) {
@@ -248,7 +259,7 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
 
   return (
     <>
-      <h1> Wave Transition</h1>
+      <h1> Pong Transition </h1>
       {isTransition ? (
         <h1 style={{ color: "blue" }}>transition start</h1>
       ) : (
@@ -293,4 +304,4 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
   );
 };
 
-export default Wave;
+export default Pong;

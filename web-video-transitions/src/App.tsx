@@ -5,6 +5,8 @@ import DissolveV2 from "./transitions/DissolveV2";
 import { Route, Routes } from "react-router-dom";
 import Lobby from "./Lobby";
 import Wave from "./transitions/Wave";
+import Pong from "./transitions/Pong";
+import WindowSlice from "./transitions/WindowSlice";
 
 function App() {
   return (
@@ -29,6 +31,28 @@ function App() {
           path="/wave"
           element={
             <Wave
+              width={1280}
+              height={640}
+              startVideoSrc={video1}
+              endVideoSrc={video2}
+            />
+          }
+        />
+        <Route
+          path="/pong"
+          element={
+            <Pong
+              width={1280}
+              height={640}
+              startVideoSrc={video1}
+              endVideoSrc={video2}
+            />
+          }
+        />
+        <Route
+          path="/window-slice"
+          element={
+            <WindowSlice
               width={1280}
               height={640}
               startVideoSrc={video1}

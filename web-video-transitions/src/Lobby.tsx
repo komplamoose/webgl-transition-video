@@ -2,7 +2,12 @@ import { Link } from "react-router-dom";
 
 const Lobby = () => {
   return (
-    <div>
+    <div
+      style={{
+        display: "flex",
+        gap: "30px",
+      }}
+    >
       <Link className="button" to="/">
         Home
       </Link>
@@ -11,6 +16,12 @@ const Lobby = () => {
       </Link>
       <Link className="button" to="/wave">
         wave
+      </Link>
+      <Link className="button" to="/pong">
+        Pong
+      </Link>
+      <Link className="button" to="/window-slice">
+        Window Slice
       </Link>
     </div>
   );

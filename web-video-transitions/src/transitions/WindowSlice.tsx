@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import createShader from "gl-shader";
 
-interface WaveProps {
+interface WindowSliceProps {
   width: number;
   height: number;
   startVideoSrc: string;
@@ -21,30 +21,39 @@ void main() {
 
 const fragmentShaderCode = `
 precision mediump float;
-
 uniform sampler2D u_texture1;
 uniform sampler2D u_texture2;
 uniform float u_time;
-uniform float u_wave_amplitude;
-uniform float u_wave_frequency;
 varying vec2 v_texcoord;
 
+uniform float u_count; // = 10.0
+uniform float u_smoothness; // = 0.5
+
+vec4 getFromColor(vec2 p) {
+  return texture2D(u_texture1, p);
+}
+
+vec4 getToColor(vec2 p) {
+  return texture2D(u_texture2, p);
+}
+
+vec4 transition (vec2 p) {
+  float pr = smoothstep(-u_smoothness, 0.0, p.x - u_time * (1.0 + u_smoothness));
+  float s = step(pr, fract(u_count * p.x));
+  return mix(getFromColor(p), getToColor(p), s);
+}
+
 void main() {
-    vec4 color1 = texture2D(u_texture1, v_texcoord);
-    vec4 color2 = texture2D(u_texture2, v_texcoord);
-
-    float wave = 0.5 * (1.0 + sin(u_wave_frequency * (v_texcoord.y - u_time)));
-
-    wave = clamp(wave, 0.0, 1.0) * u_wave_amplitude;
-
-    float mix_amount = clamp(u_time + wave, 0.0, 1.0);
-    vec4 final_color = mix(color1, color2, mix_amount);
-
-    gl_FragColor = final_color;
+  gl_FragColor = transition(v_texcoord);
 }
 `;
 
-const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
+const WindowSlice = ({
+  width,
+  height,
+  startVideoSrc,
+  endVideoSrc,
+}: WindowSliceProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const startVideoRef = useRef<HTMLVideoElement>(null);
   const endVideoRef = useRef<HTMLVideoElement>(null);
@@ -74,8 +83,8 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
         { type: "sampler2D", name: "u_texture1" },
         { type: "sampler2D", name: "u_texture2" },
         { type: "float", name: "u_time" },
-        { type: "float", name: "u_wave_amplitude" },
-        { type: "float", name: "u_wave_frequency" },
+        { type: "float", name: "u_count" },
+        { type: "float", name: "u_smoothness" },
       ],
       [
         { type: "vec2", name: "a_position" },
@@ -214,8 +223,6 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
     if (startVideo.duration - startVideo.currentTime < 2) {
       endVideo.play();
       setIsTransition(true);
-      shader.uniforms.u_wave_amplitude = 0.5;
-      shader.uniforms.u_wave_frequency = 12.0;
       gl.activeTexture(gl.TEXTURE0 + textureUnit2);
       gl.bindTexture(gl.TEXTURE_2D, texture2);
       gl.texImage2D(
@@ -230,6 +237,9 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
       timeRef.current = timeRef.current + 0.01;
       timeRef.current = timeRef.current > 1 ? 1 : timeRef.current;
     }
+
+    shader.uniforms.u_count = 10.0;
+    shader.uniforms.u_smoothness = 0.7;
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     if (endVideo.duration === endVideo.currentTime) {
@@ -248,7 +258,7 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
 
   return (
     <>
-      <h1> Wave Transition</h1>
+      <h1> WindowSlice Transition </h1>
       {isTransition ? (
         <h1 style={{ color: "blue" }}>transition start</h1>
       ) : (
@@ -267,7 +277,6 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
             ref={startVideoRef}
             src={startVideoSrc}
             muted
-            preload="auto"
             style={{ display: "block" }}
           ></video>
         </div>
@@ -277,7 +286,6 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
             ref={endVideoRef}
             src={endVideoSrc}
             muted
-            preload="auto"
             style={{ display: "block" }}
           ></video>
         </div>
@@ -293,4 +301,4 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
   );
 };
 
-export default Wave;
+export default WindowSlice;
