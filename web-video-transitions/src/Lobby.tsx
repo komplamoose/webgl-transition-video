@@ -5,6 +5,9 @@ const Lobby = () => {
     <div
       style={{
         display: "flex",
+        flexDirection: "column",
+        alignContent: "center",
+        justifyContent: "center",
         gap: "30px",
       }}
     >
@@ -22,6 +25,21 @@ const Lobby = () => {
       </Link>
       <Link className="button" to="/window-slice">
         Window Slice
+      </Link>
+      <Link className="button" to="/wipe-right">
+        Wipe Right
+      </Link>
+      <Link className="button" to="/wipe-left">
+        Wipe Left
+      </Link>
+      <Link className="button" to="/wipe-up">
+        Wipe Up
+      </Link>
+      <Link className="button" to="/wipe-down">
+        Wipe Down
+      </Link>
+      <Link className="button" to="/directional-warp">
+        Directional Warp
       </Link>
     </div>
   );
