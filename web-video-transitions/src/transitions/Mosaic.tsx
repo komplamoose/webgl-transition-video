@@ -13,17 +13,30 @@ void main() {
 `;
 
 const fragmentShaderCode = `
+#define PI 3.14159265358979323
+#define POW2(X) X*X
+#define POW3(X) X*X*X
 precision mediump float;
 uniform sampler2D u_texture1;
 uniform sampler2D u_texture2;
 uniform float u_time;
 varying vec2 v_texcoord;
 
-// move from [1.0, 1.0] to [0.0, 0.0]
-uniform vec2 u_direction; // = vec2(-1.0, 1.0)
+uniform int u_endx; // = 2
+uniform int u_endy; // = -1
 
-const float smoothness = 0.5;
-const vec2 center = vec2(0.5, 0.5);
+float Rand(vec2 v) {
+  return fract(sin(dot(v.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
+
+vec2 Rotate(vec2 v, float a) {
+  mat2 rm = mat2(cos(a), -sin(a), sin(a), cos(a));
+  return rm*v;
+}
+
+float CosInterpolation(float x) {
+  return -cos(x*PI)/2.+.5;
+}
 
 vec4 getFromColor(vec2 p) {
   return texture2D(u_texture1, p);
@@ -33,12 +46,26 @@ vec4 getToColor(vec2 p) {
   return texture2D(u_texture2, p);
 }
 
-vec4 transition (vec2 uv) {
-  vec2 v = normalize(u_direction);
-  v /= abs(v.x) + abs(v.y);
-  float d = v.x * center.x + v.y * center.y;
-  float m = 1.0 - smoothstep(-smoothness, 0.0, v.x * uv.x + v.y * uv.y - (d - 0.5 + u_time * (1.0 + smoothness)));
-  return mix(getFromColor((uv - 0.5) * (1.0 - m) + 0.5), getToColor((uv - 0.5) * m + 0.5), m);
+vec4 transition(vec2 uv) {
+  vec2 p = uv.xy / vec2(1.0).xy - .5;
+  vec2 rp = p;
+  float rpr = (u_time*2.-1.);
+  float z = -(rpr*rpr*2.) + 3.;
+  float az = abs(z);
+  rp *= az;
+  rp += mix(vec2(.5, .5), vec2(float(u_endx) + .5, float(u_endy) + .5), POW2(CosInterpolation(u_time)));
+  vec2 mrp = mod(rp, 1.);
+  vec2 crp = rp;
+  bool onEnd = int(floor(crp.x))==u_endx && int(floor(crp.y)) == u_endy;
+  if(!onEnd) {
+    float ang = float(int(Rand(floor(crp))*4.))*.5*PI;
+    mrp = vec2(.5) + Rotate(mrp-vec2(.5), ang);
+  }
+  if(onEnd || Rand(floor(crp))>.5) {
+    return getToColor(mrp);
+  } else {
+    return getFromColor(mrp);
+  }
 }
 
 void main() {
@@ -46,7 +73,7 @@ void main() {
 }
 `;
 
-const DirectionalWarp = ({
+const Mosaic = ({
   width,
   height,
   startVideoSrc,
@@ -62,7 +89,7 @@ const DirectionalWarp = ({
   const textureUnit1 = 0;
   const textureUnit2 = 1;
   const timeRef = useRef<number>(0);
-  const timeStampRef = useRef<number>(0);
+  const timeStartRef = useRef<number>(0);
   const [isTransition, setIsTransition] = useState(false);
 
   const initGL = () => {
@@ -83,7 +110,8 @@ const DirectionalWarp = ({
         { type: "sampler2D", name: "u_texture1" },
         { type: "sampler2D", name: "u_texture2" },
         { type: "float", name: "u_time" },
-        { type: "vec2", name: "u_direction" },
+        { type: "int", name: "u_endx" },
+        { type: "int", name: "u_endy" },
       ],
       [
         { type: "vec2", name: "a_position" },
@@ -222,8 +250,8 @@ const DirectionalWarp = ({
     if (startVideo.duration - startVideo.currentTime < duration) {
       endVideo.play();
       setIsTransition(true);
-      timeStampRef.current = timeStampRef.current || performance.now();
-      timeRef.current = (deltaTime - timeStampRef.current) / (duration * 1000);
+      timeStartRef.current = timeStartRef.current || performance.now();
+      timeRef.current = (deltaTime - timeStartRef.current) / (duration * 1000);
       gl.activeTexture(gl.TEXTURE0 + textureUnit2);
       gl.bindTexture(gl.TEXTURE_2D, texture2);
       gl.texImage2D(
@@ -238,7 +266,8 @@ const DirectionalWarp = ({
       shader.uniforms.u_time = timeRef.current;
     }
 
-    shader.uniforms.u_direction = [-1.0, 1.0];
+    shader.uniforms.u_endx = 2;
+    shader.uniforms.u_endy = -1;
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     if (endVideo.duration === endVideo.currentTime) {
@@ -257,7 +286,7 @@ const DirectionalWarp = ({
 
   return (
     <>
-      <h1> Directional Warp Transition </h1>
+      <h1> Mosaic Transition </h1>
       {isTransition ? (
         <h1 style={{ color: "blue" }}>transition start</h1>
       ) : (
@@ -300,4 +329,4 @@ const DirectionalWarp = ({
   );
 };
 
-export default DirectionalWarp;
+export default Mosaic;

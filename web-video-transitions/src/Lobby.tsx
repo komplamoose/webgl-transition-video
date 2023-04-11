@@ -41,6 +41,12 @@ const Lobby = () => {
       <Link className="button" to="/directional-warp">
         Directional Warp
       </Link>
+      <Link className="button" to="/mosaic">
+        Mosaic
+      </Link>
+      <Link className="button" to="/cube">
+        Cube
+      </Link>
     </div>
   );
 };

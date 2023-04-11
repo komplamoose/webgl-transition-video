@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import createShader from "gl-shader";
+import { linearInterpolation } from "../util";
 
 const vertexShaderCode = `
 attribute vec2 a_position;
@@ -19,12 +20,6 @@ uniform sampler2D u_texture2;
 uniform float u_time;
 varying vec2 v_texcoord;
 
-// move from [1.0, 1.0] to [0.0, 0.0]
-uniform vec2 u_direction; // = vec2(-1.0, 1.0)
-
-const float smoothness = 0.5;
-const vec2 center = vec2(0.5, 0.5);
-
 vec4 getFromColor(vec2 p) {
   return texture2D(u_texture1, p);
 }
@@ -33,12 +28,11 @@ vec4 getToColor(vec2 p) {
   return texture2D(u_texture2, p);
 }
 
-vec4 transition (vec2 uv) {
-  vec2 v = normalize(u_direction);
-  v /= abs(v.x) + abs(v.y);
-  float d = v.x * center.x + v.y * center.y;
-  float m = 1.0 - smoothstep(-smoothness, 0.0, v.x * uv.x + v.y * uv.y - (d - 0.5 + u_time * (1.0 + smoothness)));
-  return mix(getFromColor((uv - 0.5) * (1.0 - m) + 0.5), getToColor((uv - 0.5) * m + 0.5), m);
+vec4 transition(vec2 uv) {
+  vec2 p=uv.xy/vec2(1.0).xy; // normalize
+  vec4 a=getFromColor(p);
+  vec4 b=getToColor(p);
+  return mix(a, b, step(1.0-p.y,u_time));
 }
 
 void main() {
@@ -46,7 +40,7 @@ void main() {
 }
 `;
 
-const DirectionalWarp = ({
+const WipeUp2 = ({
   width,
   height,
   startVideoSrc,
@@ -83,7 +77,6 @@ const DirectionalWarp = ({
         { type: "sampler2D", name: "u_texture1" },
         { type: "sampler2D", name: "u_texture2" },
         { type: "float", name: "u_time" },
-        { type: "vec2", name: "u_direction" },
       ],
       [
         { type: "vec2", name: "a_position" },
@@ -219,11 +212,49 @@ const DirectionalWarp = ({
       startVideo
     );
 
-    if (startVideo.duration - startVideo.currentTime < duration) {
-      endVideo.play();
+    if (startVideo.duration - startVideo.currentTime < duration / 2) {
       setIsTransition(true);
       timeStampRef.current = timeStampRef.current || performance.now();
-      timeRef.current = (deltaTime - timeStampRef.current) / (duration * 1000);
+      const t = Math.min(
+        (deltaTime - timeStampRef.current) / ((duration * 1000) / 2),
+        1
+      );
+
+      timeRef.current = linearInterpolation(0.0, 0.5, t);
+      gl.activeTexture(gl.TEXTURE0 + textureUnit2);
+      gl.bindTexture(gl.TEXTURE_2D, texture2);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        endVideo
+      );
+      timeRef.current = timeRef.current > 0.5 ? 0.5 : timeRef.current;
+      shader.uniforms.u_time = timeRef.current;
+    }
+
+    if (startVideo.duration === startVideo.currentTime) {
+      if (endVideo.paused) timeStampRef.current = performance.now();
+      endVideo.play();
+      const t = Math.min(
+        (deltaTime - timeStampRef.current) / ((duration * 1000) / 2),
+        1
+      );
+
+      timeRef.current = linearInterpolation(0.5, 1, t);
+      gl.activeTexture(gl.TEXTURE0 + textureUnit1);
+      gl.bindTexture(gl.TEXTURE_2D, texture1);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        startVideo
+      );
+
       gl.activeTexture(gl.TEXTURE0 + textureUnit2);
       gl.bindTexture(gl.TEXTURE_2D, texture2);
       gl.texImage2D(
@@ -237,8 +268,6 @@ const DirectionalWarp = ({
       timeRef.current = timeRef.current > 1 ? 1 : timeRef.current;
       shader.uniforms.u_time = timeRef.current;
     }
-
-    shader.uniforms.u_direction = [-1.0, 1.0];
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     if (endVideo.duration === endVideo.currentTime) {
@@ -257,7 +286,7 @@ const DirectionalWarp = ({
 
   return (
     <>
-      <h1> Directional Warp Transition </h1>
+      <h1> WipeUp 2 (stable) Transition </h1>
       {isTransition ? (
         <h1 style={{ color: "blue" }}>transition start</h1>
       ) : (
@@ -300,4 +329,4 @@ const DirectionalWarp = ({
   );
 };
 
-export default DirectionalWarp;
+export default WipeUp2;

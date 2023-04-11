@@ -19,34 +19,14 @@ uniform sampler2D u_texture2;
 uniform float u_time;
 varying vec2 v_texcoord;
 
-// move from [1.0, 1.0] to [0.0, 0.0]
-uniform vec2 u_direction; // = vec2(-1.0, 1.0)
-
-const float smoothness = 0.5;
-const vec2 center = vec2(0.5, 0.5);
-
-vec4 getFromColor(vec2 p) {
-  return texture2D(u_texture1, p);
-}
-
-vec4 getToColor(vec2 p) {
-  return texture2D(u_texture2, p);
-}
-
-vec4 transition (vec2 uv) {
-  vec2 v = normalize(u_direction);
-  v /= abs(v.x) + abs(v.y);
-  float d = v.x * center.x + v.y * center.y;
-  float m = 1.0 - smoothstep(-smoothness, 0.0, v.x * uv.x + v.y * uv.y - (d - 0.5 + u_time * (1.0 + smoothness)));
-  return mix(getFromColor((uv - 0.5) * (1.0 - m) + 0.5), getToColor((uv - 0.5) * m + 0.5), m);
-}
-
 void main() {
-  gl_FragColor = transition(v_texcoord);
+  vec4 color1 = texture2D(u_texture1, v_texcoord);
+  vec4 color2 = texture2D(u_texture2, v_texcoord);
+  gl_FragColor = mix(color1, color2, u_time);
 }
 `;
 
-const DirectionalWarp = ({
+const Dissolve = ({
   width,
   height,
   startVideoSrc,
@@ -83,7 +63,6 @@ const DirectionalWarp = ({
         { type: "sampler2D", name: "u_texture1" },
         { type: "sampler2D", name: "u_texture2" },
         { type: "float", name: "u_time" },
-        { type: "vec2", name: "u_direction" },
       ],
       [
         { type: "vec2", name: "a_position" },
@@ -223,6 +202,7 @@ const DirectionalWarp = ({
       endVideo.play();
       setIsTransition(true);
       timeStampRef.current = timeStampRef.current || performance.now();
+
       timeRef.current = (deltaTime - timeStampRef.current) / (duration * 1000);
       gl.activeTexture(gl.TEXTURE0 + textureUnit2);
       gl.bindTexture(gl.TEXTURE_2D, texture2);
@@ -237,8 +217,6 @@ const DirectionalWarp = ({
       timeRef.current = timeRef.current > 1 ? 1 : timeRef.current;
       shader.uniforms.u_time = timeRef.current;
     }
-
-    shader.uniforms.u_direction = [-1.0, 1.0];
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     if (endVideo.duration === endVideo.currentTime) {
@@ -257,7 +235,7 @@ const DirectionalWarp = ({
 
   return (
     <>
-      <h1> Directional Warp Transition </h1>
+      <h1> Dissolve Transition </h1>
       {isTransition ? (
         <h1 style={{ color: "blue" }}>transition start</h1>
       ) : (
@@ -300,4 +278,4 @@ const DirectionalWarp = ({
   );
 };
 
-export default DirectionalWarp;
+export default Dissolve;

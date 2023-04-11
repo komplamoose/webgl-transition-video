@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import createShader from "gl-shader";
 
-interface WaveProps {
-  width: number;
-  height: number;
-  startVideoSrc: string;
-  endVideoSrc: string;
-}
-
 const vertexShaderCode = `
 attribute vec2 a_position;
 attribute vec2 a_texcoord;
@@ -44,7 +37,13 @@ void main() {
 }
 `;
 
-const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
+const Wave = ({
+  width,
+  height,
+  startVideoSrc,
+  endVideoSrc,
+  duration,
+}: TransitionProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const startVideoRef = useRef<HTMLVideoElement>(null);
   const endVideoRef = useRef<HTMLVideoElement>(null);
@@ -54,6 +53,7 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
   const textureUnit1 = 0;
   const textureUnit2 = 1;
   const timeRef = useRef<number>(0);
+  const timeStampRef = useRef<number>(0);
   const [isTransition, setIsTransition] = useState(false);
 
   const initGL = () => {
@@ -171,7 +171,7 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
     initTexture();
   }, [startVideoSrc, endVideoSrc]);
 
-  const render = () => {
+  const render = (deltaTime: number) => {
     if (!shaderRef.current) {
       console.log("no shader");
       return;
@@ -211,9 +211,11 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
       startVideo
     );
 
-    if (startVideo.duration - startVideo.currentTime < 2) {
+    if (startVideo.duration - startVideo.currentTime < duration) {
       endVideo.play();
       setIsTransition(true);
+      timeStampRef.current = timeStampRef.current || performance.now();
+      timeRef.current = (deltaTime - timeStampRef.current) / (duration * 1000);
       shader.uniforms.u_wave_amplitude = 0.5;
       shader.uniforms.u_wave_frequency = 12.0;
       gl.activeTexture(gl.TEXTURE0 + textureUnit2);
@@ -226,9 +228,8 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
         gl.UNSIGNED_BYTE,
         endVideo
       );
-      shader.uniforms.u_time = timeRef.current;
-      timeRef.current = timeRef.current + 0.01;
       timeRef.current = timeRef.current > 1 ? 1 : timeRef.current;
+      shader.uniforms.u_time = timeRef.current;
     }
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -243,7 +244,7 @@ const Wave = ({ width, height, startVideoSrc, endVideoSrc }: WaveProps) => {
   useEffect(() => {
     if (!startVideoRef.current) return;
     startVideoRef.current.play();
-    render();
+    requestAnimationFrame(render);
   }, []);
 
   return (

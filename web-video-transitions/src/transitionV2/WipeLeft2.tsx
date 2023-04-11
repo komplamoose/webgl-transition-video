@@ -1,12 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import createShader from "gl-shader";
-
-interface DissolveProps {
-  width: number;
-  height: number;
-  startVideoSrc: string;
-  endVideoSrc: string;
-}
+import { linearInterpolation } from "../util";
 
 const vertexShaderCode = `
 attribute vec2 a_position;
@@ -26,19 +20,33 @@ uniform sampler2D u_texture2;
 uniform float u_time;
 varying vec2 v_texcoord;
 
+vec4 getFromColor(vec2 p) {
+  return texture2D(u_texture1, p);
+}
+
+vec4 getToColor(vec2 p) {
+  return texture2D(u_texture2, p);
+}
+
+vec4 transition(vec2 uv) {
+  vec2 p=uv.xy/vec2(1.0).xy;
+  vec4 a=getFromColor(p);
+  vec4 b=getToColor(p);
+  return mix(a, b, step(1.0-p.x, u_time));
+}
+
 void main() {
-  vec4 color1 = texture2D(u_texture1, v_texcoord);
-  vec4 color2 = texture2D(u_texture2, v_texcoord);
-  gl_FragColor = mix(color1, color2, u_time);
+  gl_FragColor = transition(v_texcoord);
 }
 `;
 
-const DissolveV2 = ({
+const WipeLeft2 = ({
   width,
   height,
   startVideoSrc,
   endVideoSrc,
-}: DissolveProps) => {
+  duration,
+}: TransitionProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const startVideoRef = useRef<HTMLVideoElement>(null);
   const endVideoRef = useRef<HTMLVideoElement>(null);
@@ -48,6 +56,7 @@ const DissolveV2 = ({
   const textureUnit1 = 0;
   const textureUnit2 = 1;
   const timeRef = useRef<number>(0);
+  const timeStampRef = useRef<number>(0);
   const [isTransition, setIsTransition] = useState(false);
 
   const initGL = () => {
@@ -163,7 +172,7 @@ const DissolveV2 = ({
     initTexture();
   }, [startVideoSrc, endVideoSrc]);
 
-  const render = () => {
+  const render = (deltaTime: number) => {
     if (!shaderRef.current) {
       console.log("no shader");
       return;
@@ -203,9 +212,15 @@ const DissolveV2 = ({
       startVideo
     );
 
-    if (startVideo.duration - startVideo.currentTime < 2) {
-      endVideo.play();
+    if (startVideo.duration - startVideo.currentTime < duration / 2) {
       setIsTransition(true);
+      timeStampRef.current = timeStampRef.current || performance.now();
+      const t = Math.min(
+        (deltaTime - timeStampRef.current) / ((duration * 1000) / 2),
+        1
+      );
+
+      timeRef.current = linearInterpolation(0, 0.5, t);
       gl.activeTexture(gl.TEXTURE0 + textureUnit2);
       gl.bindTexture(gl.TEXTURE_2D, texture2);
       gl.texImage2D(
@@ -216,9 +231,42 @@ const DissolveV2 = ({
         gl.UNSIGNED_BYTE,
         endVideo
       );
+      timeRef.current = timeRef.current > 0.5 ? 0.5 : timeRef.current;
       shader.uniforms.u_time = timeRef.current;
-      timeRef.current = timeRef.current + 0.01;
+    }
+
+    if (startVideo.duration === startVideo.currentTime) {
+      if (endVideo.paused) timeStampRef.current = performance.now();
+      endVideo.play();
+      const t = Math.min(
+        (deltaTime - timeStampRef.current) / ((duration * 1000) / 2),
+        1
+      );
+
+      timeRef.current = linearInterpolation(0.5, 1, t);
+      gl.activeTexture(gl.TEXTURE0 + textureUnit1);
+      gl.bindTexture(gl.TEXTURE_2D, texture1);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        startVideo
+      );
+
+      gl.activeTexture(gl.TEXTURE0 + textureUnit2);
+      gl.bindTexture(gl.TEXTURE_2D, texture2);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        endVideo
+      );
       timeRef.current = timeRef.current > 1 ? 1 : timeRef.current;
+      shader.uniforms.u_time = timeRef.current;
     }
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -233,12 +281,12 @@ const DissolveV2 = ({
   useEffect(() => {
     if (!startVideoRef.current) return;
     startVideoRef.current.play();
-    render();
+    requestAnimationFrame(render);
   }, []);
 
   return (
     <>
-      <h1> Dissolve Transition </h1>
+      <h1> WipeLeft 2 (stable) Transition </h1>
       {isTransition ? (
         <h1 style={{ color: "blue" }}>transition start</h1>
       ) : (
@@ -281,4 +329,4 @@ const DissolveV2 = ({
   );
 };
 
-export default DissolveV2;
+export default WipeLeft2;
