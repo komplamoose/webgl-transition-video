@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import createShader from "gl-shader";
 
-const vertexShaderCode = `
+const vertexShaderCode = `#version 300 es
 attribute vec2 a_position;
 attribute vec2 a_texcoord;
-varying vec2 v_texcoord;
+out vec2 v_texcoord;
 
 void main() {
   gl_Position = vec4(a_position, 0, 1);
@@ -12,17 +12,18 @@ void main() {
 }
 `;
 
-const fragmentShaderCode = `
+const fragmentShaderCode = `#version 300 es
 precision mediump float;
 uniform sampler2D u_texture1;
 uniform sampler2D u_texture2;
 uniform float u_time;
-varying vec2 v_texcoord;
+in vec2 v_texcoord;
+out vec4 fragColor;
 
 void main() {
   vec4 color1 = texture2D(u_texture1, v_texcoord);
   vec4 color2 = texture2D(u_texture2, v_texcoord);
-  gl_FragColor = mix(color1, color2, u_time);
+  fragColor = mix(color1, color2, u_time);
 }
 `;
 

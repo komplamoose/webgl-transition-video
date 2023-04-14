@@ -11,6 +11,9 @@ const Lobby2 = () => {
         gap: "30px",
       }}
     >
+      <Link className="button2" to="/dissolve-asset">
+        Dissolve Asset
+      </Link>
       <Link className="button2" to="/">
         Home
       </Link>

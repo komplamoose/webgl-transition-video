@@ -1,6 +1,6 @@
 import "./App.css";
-import video1 from "./assets/video1.mp4";
-import video2 from "./assets/video2.mp4";
+import video1 from "./assets/video3.mp4";
+import video2 from "./assets/video4.mp4";
 import Dissolve from "./transitions/Dissolve";
 import { Route, Routes } from "react-router-dom";
 import Lobby from "./Lobby";
@@ -27,6 +27,8 @@ import WipeDown2 from "./transitionV2/WipeDown2";
 import DirectionalWarp2 from "./transitionV2/DirectionalWarp2";
 import Mosaic2 from "./transitionV2/Mosaic2";
 import Cube2 from "./transitionV2/Cube2";
+import AssetDissolve from "./assetTransitions/AssetDissolve";
+import { dummyVideoModel1, dummyVideoModel2 } from "./dummy";
 
 function App() {
   const [duration] = useState<number>(1);
@@ -42,6 +44,18 @@ function App() {
             Reset
           </button>
           <Routes>
+            <Route
+              path="/dissolve-asset"
+              element={
+                <AssetDissolve
+                  width={1280}
+                  height={640}
+                  startVideo={dummyVideoModel1}
+                  endVideo={dummyVideoModel2}
+                  duration={duration}
+                />
+              }
+            />
             <Route
               path="/dissolve"
               element={
