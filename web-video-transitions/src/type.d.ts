@@ -18,7 +18,6 @@ declare interface AssetVideoModel {
   src: string;
   width: number;
   height: number;
-  duration: number;
   images : ImageModel[];
 }
 
