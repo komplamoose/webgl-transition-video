@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import createShader from "gl-shader";
+import { linearInterpolation } from "../util";
 
 const vertexShaderCode = `#version 300 es
 in vec2 a_position;
@@ -32,19 +33,27 @@ void main() {
   vec4 color1 = texture(u_video_texture1, v_texcoord);
   vec4 color2 = texture(u_video_texture2, v_texcoord);
 
-  for (int i = 0; i < u_video_texture_array1_len; i++) {
-    vec4 texcoord1 = u_video_texture_array1_texcoords[i];
-    vec4 imgColor1 = texture(u_textureImageArray1, vec3((v_texcoord - texcoord1.xy) / texcoord1.zw, float(i)));
-    color1 = mix(color1, imgColor1, imgColor1.a);
-  }
+  vec4 texcoord1 = u_video_texture_array1_texcoords[0];
+  //outputColor = vec4(0.0, 0.0, 0.0, 0.0);
+  outputColor = texture(u_textureImageArray1, vec3(v_texcoord, 0.0));
+  //outputColor = texture(u_textureImageArray1, vec3((v_texcoord - texcoord1.xy) / texcoord1.zw, float(0)));
+  // for (int i = 0; i < u_video_texture_array1_len; i++) {
+  //   vec4 texcoord1 = u_video_texture_array1_texcoords[i];
+  //   vec4 imgColor1 = texture(u_textureImageArray1, vec3((v_texcoord - texcoord1.xy) / texcoord1.zw, float(i)));
+  //   if (imgColor1.a > 0.0) {
+  //     color1 = mix(color1, imgColor1, imgColor1.a);
+  //   }
+  // }
 
-  for (int i = 0; i < u_video_texture_array2_len; i++) {
-    vec4 texcoord2 = u_video_texture_array2_texcoords[i];
-    vec4 imgColor2 = texture(u_textureImageArray2, vec3((v_texcoord - texcoord2.xy) / texcoord2.zw, float(i)));
-    color2 = mix(color2, imgColor2, imgColor2.a);
-  }
+  // for (int i = 0; i < u_video_texture_array2_len; i++) {
+  //   vec4 texcoord2 = u_video_texture_array2_texcoords[i];
+  //   vec4 imgColor2 = texture(u_textureImageArray2, vec3((v_texcoord - texcoord2.xy) / texcoord2.zw, float(i)));
+  //   if (imgColor2.a > 0.0) {
+  //     color2 = mix(color2, imgColor2, imgColor2.a);
+  //   }
+  // }
 
-  outputColor = mix(color1, color2, u_time);
+  // outputColor = mix(color1, color2, u_time);
 }
 `;
 
@@ -88,6 +97,7 @@ const AssetDissolve = ({
         { type: "sampler2D", name: "u_video_texture2" },
         { type: "int", name: "u_imageCount1" },
         { type: "int", name: "u_imageCount2" },
+        { type: "float", name: "u_time" },
       ],
       [
         { type: "vec2", name: "a_position" },
@@ -159,6 +169,8 @@ const AssetDissolve = ({
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     const location = gl.getUniformLocation(shader.program, uniformName);
     gl.uniform1i(location, textureUnit);
+
+    return texture;
   };
 
   const setupTextureArray = async (
@@ -169,6 +181,7 @@ const AssetDissolve = ({
     uniformName: string,
     videoData: AssetVideoModel
   ) => {
+    console.log(uniformName);
     gl.activeTexture(gl.TEXTURE0 + textureUnit);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, texture);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -190,6 +203,8 @@ const AssetDissolve = ({
       gl.UNSIGNED_BYTE,
       null
     );
+
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, texture);
 
     loadedImages.forEach((image, index) => {
       gl.texSubImage3D(
@@ -230,16 +245,23 @@ const AssetDissolve = ({
     videoData: AssetVideoModel,
     uniformName: string
   ) => {
-    const texcoords = videoData.images
-      .map((img) => [
-        img.xPos / width,
-        img.yPos / height,
-        img.width / width,
-        img.height / height,
-      ])
+    const { images, width, height } = videoData;
+    const texcoords = images
+      .map((img) => {
+        const result = [
+          img.xPos / width,
+          img.yPos / height,
+          img.width / width,
+          img.height / height,
+        ];
+
+        console.log("RESULT", result);
+        return result;
+      })
       .flat();
 
     const location = gl.getUniformLocation(shader.program, uniformName);
+    console.log(new Float32Array(texcoords));
     gl.uniform4fv(location, new Float32Array(texcoords));
   };
 
@@ -265,25 +287,35 @@ const AssetDissolve = ({
 
     if (!texture1 || !texture2 || !textureArray1 || !textureArray2) return;
 
-    setupVideoTexture(gl, shader, texture1, textureUnit1, "u_video_texture1");
-    texture1Ref.current = texture1;
+    texture1Ref.current = setupVideoTexture(
+      gl,
+      shader,
+      texture1,
+      textureUnit1,
+      "u_video_texture1"
+    );
     setupTextureArray(
       gl,
       shader,
       textureArray1,
       textureArrayUnit1,
-      "u_video_texture_array1",
+      "u_textureImageArray1",
       startVideo
     );
 
-    setupVideoTexture(gl, shader, texture2, textureUnit2, "u_video_texture2");
-    texture2Ref.current = texture2;
+    texture2Ref.current = setupVideoTexture(
+      gl,
+      shader,
+      texture2,
+      textureUnit2,
+      "u_video_texture2"
+    );
     setupTextureArray(
       gl,
       shader,
       textureArray2,
       textureArrayUnit2,
-      "u_video_texture_array2",
+      "u_textureImageArray2",
       endVideo
     );
 
@@ -303,7 +335,7 @@ const AssetDissolve = ({
     setupImageAssetLength(gl, shader, startVideo, "u_video_texture_array1_len");
     setupImageAssetLength(gl, shader, endVideo, "u_video_texture_array2_len");
 
-    console.log("initTexture");
+    console.log("initVideoTexture");
   };
 
   useEffect(() => {
@@ -357,7 +389,11 @@ const AssetDissolve = ({
       setIsTransition(true);
       timeStampRef.current = timeStampRef.current || performance.now();
 
-      timeRef.current = (deltaTime - timeStampRef.current) / (duration * 1000);
+      const t = Math.min(
+        (deltaTime - timeStampRef.current) / ((duration * 1000) / 2),
+        1
+      );
+      timeRef.current = linearInterpolation(0, 1, t);
       gl.activeTexture(gl.TEXTURE0 + textureUnit2);
       gl.bindTexture(gl.TEXTURE_2D, texture2);
       gl.texImage2D(
@@ -373,7 +409,7 @@ const AssetDissolve = ({
     }
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    if (endVideo.duration === endVideo.currentTime) {
+    if (endVideo.duration < endVideo.currentTime) {
       setIsTransition(false);
       endVideo.pause();
       return;
@@ -389,7 +425,7 @@ const AssetDissolve = ({
 
   return (
     <>
-      <h1> Dissolve Transition </h1>
+      <h1> Image Dissolve Transition </h1>
       {isTransition ? (
         <h1 style={{ color: "blue" }}>transition start</h1>
       ) : (
@@ -412,6 +448,15 @@ const AssetDissolve = ({
             muted
             style={{ display: "block" }}
           ></video>
+          {startVideo.images.map((image, index) => (
+            <img
+              key={index}
+              src={image.src}
+              width={image.width}
+              height={image.height}
+              style={{ display: "block" }}
+            />
+          ))}
         </div>
         <div>
           <h3>video 2</h3>
@@ -423,6 +468,15 @@ const AssetDissolve = ({
             muted
             style={{ display: "block" }}
           ></video>
+          {endVideo.images.map((image, index) => (
+            <img
+              key={index}
+              src={image.src}
+              width={image.width}
+              height={image.height}
+              style={{ display: "block" }}
+            />
+          ))}
         </div>
       </div>
       <h1>result</h1>
