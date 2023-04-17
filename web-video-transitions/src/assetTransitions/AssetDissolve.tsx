@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import createShader from "gl-shader";
-import { linearInterpolation } from "../util";
+import { linearInterpolation, getAssets } from "../util";
 
 const vertexShaderCode = `#version 300 es
 in vec2 a_position;
@@ -17,63 +17,45 @@ const fragmentShaderCode = `#version 300 es
 #define MAX_IMAGES 20
 precision highp float;
 precision highp sampler2DArray;
+
 uniform sampler2D u_video_texture1;
 uniform sampler2D u_video_texture2;
-uniform sampler2DArray u_textureImageArray1;
-uniform sampler2DArray u_textureImageArray2;
-uniform vec4 u_video_texture_array1_texcoords[MAX_IMAGES];
-uniform vec4 u_video_texture_array2_texcoords[MAX_IMAGES];
-uniform int u_video_texture_array1_len;
-uniform int u_video_texture_array2_len;
+uniform sampler2D u_overlay_texture1;
+uniform sampler2D u_overlay_texture2;
 uniform float u_time;
 in vec2 v_texcoord;
 out vec4 outputColor;
 
 void main() {
-  vec4 color1 = texture(u_video_texture1, v_texcoord);
-  vec4 color2 = texture(u_video_texture2, v_texcoord);
+  vec4 originColor1 = texture(u_video_texture1, v_texcoord);
+  vec4 originColor2 = texture(u_video_texture2, v_texcoord);
 
-  vec4 texcoord1 = u_video_texture_array1_texcoords[0];
-  //outputColor = vec4(0.0, 0.0, 0.0, 0.0);
-  outputColor = texture(u_textureImageArray1, vec3(v_texcoord, 0.0));
-  //outputColor = texture(u_textureImageArray1, vec3((v_texcoord - texcoord1.xy) / texcoord1.zw, float(0)));
-  // for (int i = 0; i < u_video_texture_array1_len; i++) {
-  //   vec4 texcoord1 = u_video_texture_array1_texcoords[i];
-  //   vec4 imgColor1 = texture(u_textureImageArray1, vec3((v_texcoord - texcoord1.xy) / texcoord1.zw, float(i)));
-  //   if (imgColor1.a > 0.0) {
-  //     color1 = mix(color1, imgColor1, imgColor1.a);
-  //   }
-  // }
+  vec4 overlayColor1 = texture(u_overlay_texture1, v_texcoord);
+  vec4 overlayColor2 = texture(u_overlay_texture2, v_texcoord);
 
-  // for (int i = 0; i < u_video_texture_array2_len; i++) {
-  //   vec4 texcoord2 = u_video_texture_array2_texcoords[i];
-  //   vec4 imgColor2 = texture(u_textureImageArray2, vec3((v_texcoord - texcoord2.xy) / texcoord2.zw, float(i)));
-  //   if (imgColor2.a > 0.0) {
-  //     color2 = mix(color2, imgColor2, imgColor2.a);
-  //   }
-  // }
+  vec4 color1 = mix(originColor1, overlayColor1, overlayColor1.a);
+  vec4 color2 = mix(originColor2, overlayColor2, overlayColor2.a);
 
-  // outputColor = mix(color1, color2, u_time);
+  outputColor = mix(color1, color2, u_time);
 }
 `;
 
-const AssetDissolve = ({
-  width,
-  height,
-  startVideo,
-  endVideo,
-  duration,
-}: AssetTransitionProps) => {
+const AssetDissolve = (props: AssetTransitionProps) => {
+  const { width, height, startVideo, endVideo, duration } = props;
+  const startAssetsRef = useRef<CanvasAsset[]>(getAssets(startVideo));
+  const endAssetsRef = useRef<CanvasAsset[]>(getAssets(endVideo));
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const startVideoRef = useRef<HTMLVideoElement>(null);
   const endVideoRef = useRef<HTMLVideoElement>(null);
   const texture1Ref = useRef<WebGLTexture>();
   const texture2Ref = useRef<WebGLTexture>();
   const shaderRef = useRef<ReturnType<typeof createShader>>();
-  const textureUnit1 = 0;
-  const textureUnit2 = 1;
-  const textureArrayUnit1 = 2;
-  const textureArrayUnit2 = 3;
+  const overlayTexture1Ref = useRef<WebGLTexture>();
+  const overlayTexture2Ref = useRef<WebGLTexture>();
+  const videoTextureUnit1 = 0;
+  const videoTextureUnit2 = 1;
+  const overlayTextureUnit1 = 2;
+  const overlayTextureUnit2 = 3;
   const timeRef = useRef<number>(0);
   const timeStampRef = useRef<number>(0);
   const [isTransition, setIsTransition] = useState(false);
@@ -95,8 +77,8 @@ const AssetDissolve = ({
       [
         { type: "sampler2D", name: "u_video_texture1" },
         { type: "sampler2D", name: "u_video_texture2" },
-        { type: "int", name: "u_imageCount1" },
-        { type: "int", name: "u_imageCount2" },
+        { type: "sampler2D", name: "u_overlay_texture1" },
+        { type: "sampler2D", name: "u_overlay_texture2" },
         { type: "float", name: "u_time" },
       ],
       [
@@ -154,7 +136,7 @@ const AssetDissolve = ({
     console.log("initBuffers");
   };
 
-  const setupVideoTexture = (
+  const setupTexture = (
     gl: WebGL2RenderingContext,
     shader: Shader,
     texture: WebGLTexture,
@@ -173,167 +155,70 @@ const AssetDissolve = ({
     return texture;
   };
 
-  const setupTextureArray = async (
-    gl: WebGL2RenderingContext,
-    shader: Shader,
-    texture: WebGLTexture,
-    textureUnit: number,
-    uniformName: string,
-    videoData: AssetVideoModel
-  ) => {
-    console.log(uniformName);
-    gl.activeTexture(gl.TEXTURE0 + textureUnit);
-    gl.bindTexture(gl.TEXTURE_2D_ARRAY, texture);
-    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  const drawOverlayImageCanvas = (assets: CanvasAsset[]) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
 
-    const loadedImages = await loadImages(videoData.images);
-
-    gl.texImage3D(
-      gl.TEXTURE_2D_ARRAY,
-      0,
-      gl.RGBA,
-      videoData.width,
-      videoData.height,
-      loadedImages.length,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      null
-    );
-
-    gl.bindTexture(gl.TEXTURE_2D_ARRAY, texture);
-
-    loadedImages.forEach((image, index) => {
-      gl.texSubImage3D(
-        gl.TEXTURE_2D_ARRAY,
-        0,
-        0,
-        0,
-        index,
-        image.width,
-        image.height,
-        1,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        image
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, width, height);
+    assets.forEach((asset) => {
+      ctx.drawImage(
+        asset.element,
+        asset.model.xPos,
+        asset.model.yPos,
+        asset.model.width,
+        asset.model.height
       );
     });
 
-    const location = gl.getUniformLocation(shader.program, uniformName);
-    gl.uniform1i(location, textureUnit);
+    return canvas;
   };
 
-  const loadImages = (images: ImageModel[]) => {
-    const imagePromises = images.map((asset: ImageModel) => {
-      return new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new Image();
-        img.src = asset.src;
-        img.onload = () => resolve(img);
-        img.onerror = (err) => reject(err);
-      });
-    });
-
-    return Promise.all(imagePromises);
-  };
-
-  const setupImageTextureCoord = (
-    gl: WebGL2RenderingContext,
-    shader: Shader,
-    videoData: AssetVideoModel,
-    uniformName: string
-  ) => {
-    const { images, width, height } = videoData;
-    const texcoords = images
-      .map((img) => {
-        const result = [
-          img.xPos / width,
-          img.yPos / height,
-          img.width / width,
-          img.height / height,
-        ];
-
-        console.log("RESULT", result);
-        return result;
-      })
-      .flat();
-
-    const location = gl.getUniformLocation(shader.program, uniformName);
-    console.log(new Float32Array(texcoords));
-    gl.uniform4fv(location, new Float32Array(texcoords));
-  };
-
-  const setupImageAssetLength = (
-    gl: WebGL2RenderingContext,
-    shader: Shader,
-    videoData: AssetVideoModel,
-    uniformName: string
-  ) => {
-    const location = gl.getUniformLocation(shader.program, uniformName);
-    gl.uniform1i(location, videoData.images.length);
-  };
-
-  const initVideoTexture = async () => {
+  const initTextures = async () => {
     if (!shaderRef.current) return;
     const shader = shaderRef.current;
     const gl = shader.gl as WebGL2RenderingContext;
 
     const texture1 = gl.createTexture();
     const texture2 = gl.createTexture();
-    const textureArray1 = gl.createTexture();
-    const textureArray2 = gl.createTexture();
+    const overlayTexture1 = gl.createTexture();
+    const overlayTexture2 = gl.createTexture();
 
-    if (!texture1 || !texture2 || !textureArray1 || !textureArray2) return;
+    if (!texture1 || !texture2 || !overlayTexture1 || !overlayTexture2) return;
 
-    texture1Ref.current = setupVideoTexture(
+    texture1Ref.current = setupTexture(
       gl,
       shader,
       texture1,
-      textureUnit1,
+      videoTextureUnit1,
       "u_video_texture1"
     );
-    setupTextureArray(
+
+    overlayTexture1Ref.current = setupTexture(
       gl,
       shader,
-      textureArray1,
-      textureArrayUnit1,
-      "u_textureImageArray1",
-      startVideo
+      overlayTexture1,
+      overlayTextureUnit1,
+      "u_overlay_texture1"
     );
 
-    texture2Ref.current = setupVideoTexture(
+    texture2Ref.current = setupTexture(
       gl,
       shader,
       texture2,
-      textureUnit2,
+      videoTextureUnit2,
       "u_video_texture2"
     );
-    setupTextureArray(
-      gl,
-      shader,
-      textureArray2,
-      textureArrayUnit2,
-      "u_textureImageArray2",
-      endVideo
-    );
 
-    setupImageTextureCoord(
+    overlayTexture2Ref.current = setupTexture(
       gl,
       shader,
-      startVideo,
-      "u_video_texture_array1_texcoords"
+      overlayTexture2,
+      overlayTextureUnit2,
+      "u_overlay_texture2"
     );
-    setupImageTextureCoord(
-      gl,
-      shader,
-      endVideo,
-      "u_video_texture_array2_texcoords"
-    );
-
-    setupImageAssetLength(gl, shader, startVideo, "u_video_texture_array1_len");
-    setupImageAssetLength(gl, shader, endVideo, "u_video_texture_array2_len");
 
     console.log("initVideoTexture");
   };
@@ -341,7 +226,7 @@ const AssetDissolve = ({
   useEffect(() => {
     initGL();
     initBuffers();
-    initVideoTexture();
+    initTextures();
   }, [startVideo, endVideo]);
 
   const render = (deltaTime: number) => {
@@ -364,6 +249,12 @@ const AssetDissolve = ({
       console.log("no startVideo");
       return;
     }
+
+    const overlayTexture1 = overlayTexture1Ref.current;
+    const overlayTexture2 = overlayTexture2Ref.current;
+
+    if (!overlayTexture1 || !overlayTexture2) return;
+
     const startVideo = startVideoRef.current;
     if (!endVideoRef.current) {
       console.log("no endVideo");
@@ -373,7 +264,23 @@ const AssetDissolve = ({
 
     const gl = shader.gl;
 
-    gl.activeTexture(gl.TEXTURE0 + textureUnit1);
+    const startOverlayCanvas = drawOverlayImageCanvas(startAssetsRef.current);
+    const endOverlayCanvas = drawOverlayImageCanvas(endAssetsRef.current);
+
+    if (!startOverlayCanvas || !endOverlayCanvas) return;
+
+    gl.activeTexture(gl.TEXTURE0 + overlayTextureUnit1);
+    gl.bindTexture(gl.TEXTURE_2D, overlayTexture1);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      startOverlayCanvas
+    );
+
+    gl.activeTexture(gl.TEXTURE0 + videoTextureUnit1);
     gl.bindTexture(gl.TEXTURE_2D, texture1);
     gl.texImage2D(
       gl.TEXTURE_2D,
@@ -394,7 +301,18 @@ const AssetDissolve = ({
         1
       );
       timeRef.current = linearInterpolation(0, 1, t);
-      gl.activeTexture(gl.TEXTURE0 + textureUnit2);
+      gl.activeTexture(gl.TEXTURE0 + overlayTextureUnit2);
+      gl.bindTexture(gl.TEXTURE_2D, overlayTexture2);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        endOverlayCanvas
+      );
+
+      gl.activeTexture(gl.TEXTURE0 + videoTextureUnit2);
       gl.bindTexture(gl.TEXTURE_2D, texture2);
       gl.texImage2D(
         gl.TEXTURE_2D,

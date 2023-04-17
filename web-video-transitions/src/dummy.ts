@@ -14,39 +14,21 @@ const dummyVideoModel1 : AssetVideoModel = {
   images : [
     {
       src : image1,
-      width : 30,
-      height : 20,
-      xPos : 0,
-      yPos : 100,
+      width : 100,
+      height : 100,
+      xPos : 200,
+      yPos : 200,
       rotation : 0,
       zIndex : 0
     },
     {
       src : image2,
-      width : 40,
-      height : 30,
-      xPos : 100,
-      yPos : 0,
-      rotation : 0,
-      zIndex : 1
-    },
-    {
-      src : image3,
-      width : 20,
-      height : 10,
-      xPos : 100,
+      width : 100,
+      height : 100,
+      xPos : 150,
       yPos : 100,
       rotation : 0,
-      zIndex : 2
-    },
-    {
-      src : image4,
-      width : 64,
-      height : 36,
-      xPos : 50,
-      yPos : 50,
-      rotation : 0,
-      zIndex : 3
+      zIndex : 1
     },
   ]
 };
@@ -57,27 +39,9 @@ const dummyVideoModel2 : AssetVideoModel = {
   height : 360,
   images : [
     {
-      src : image1,
-      width : 30,
-      height : 20,
-      xPos : 0,
-      yPos : 100,
-      rotation : 0,
-      zIndex : 0
-    },
-    {
-      src : image2,
-      width : 40,
-      height : 30,
-      xPos : 100,
-      yPos : 0,
-      rotation : 0,
-      zIndex : 1
-    },
-    {
       src : image3,
-      width : 20,
-      height : 10,
+      width : 100,
+      height : 100,
       xPos : 100,
       yPos : 100,
       rotation : 0,
@@ -85,10 +49,10 @@ const dummyVideoModel2 : AssetVideoModel = {
     },
     {
       src : image4,
-      width : 64,
-      height : 36,
-      xPos : 50,
-      yPos : 50,
+      width : 100,
+      height : 100,
+      xPos : 200,
+      yPos : 250,
       rotation : 0,
       zIndex : 3
     },

@@ -31,4 +31,9 @@ declare interface ImageModel {
   zIndex: number;
 }
 
+declare interface CanvasAsset {
+  model: ImageModel;
+  element: HTMLImageElement;
+}
+
 type Shader = ReturnType<typeof createShader>;

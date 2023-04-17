@@ -48,8 +48,8 @@ function App() {
               path="/dissolve-asset"
               element={
                 <AssetDissolve
-                  width={1280}
-                  height={640}
+                  width={640}
+                  height={360}
                   startVideo={dummyVideoModel1}
                   endVideo={dummyVideoModel2}
                   duration={duration}
