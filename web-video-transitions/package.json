@@ -15,6 +15,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.10.0",
     "regl": "^2.1.0",
+    "styled-component": "^2.8.0",
     "twgl.js": "^5.3.1",
     "type": "^2.7.2"
   },
