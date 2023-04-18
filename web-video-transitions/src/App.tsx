@@ -1,5 +1,5 @@
 import "./App.css";
-import Gallery from "./Gallary";
+import Gallery from "./Gallery";
 
 function App() {
   return (
